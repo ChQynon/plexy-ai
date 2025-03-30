@@ -14,8 +14,8 @@
     }
   ],
   "env": {
-    "TELEGRAM_TOKEN": "@telegram_token",
-    "GEMINI_API_KEY": "@gemini_api_key",
+    "TELEGRAM_TOKEN": "8178608724:AAHZP8zTEXvmxkfQ1J3iyR0IVEfiv_l_548",
+    "GEMINI_API_KEY": "AIzaSyCBAW-Or3PDa_c48WCWikH3f7EhvUwsvnE",
     "BOT_NAME": "Plexy",
     "BOT_CREATOR": "Plexy Lab",
     "BOT_OWNER": "@qynon",
