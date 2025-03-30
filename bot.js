@@ -8,6 +8,7 @@ const {
 const fs = require("node:fs");
 const path = require('path');
 const imageHandler = require('./imageHandler');
+const express = require('express');
 
 // Конфигурация API ключей
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
@@ -16,10 +17,13 @@ const DEFAULT_MODEL = process.env.BOT_DEFAULT_MODEL || 'gemini-2.5-pro-exp-03-25
 const TEMP_DIR = process.env.BOT_TEMP_DIR || './temp';
 
 // Информация о боте
-const BOT_NAME = 'Plexy';
-const BOT_CREATOR = 'Plexy Lab';
-const BOT_OWNER = '@qynon';
-const BOT_VERSION = '1.1.0';
+const BOT_NAME = process.env.BOT_NAME || 'Plexy';
+const BOT_CREATOR = process.env.BOT_CREATOR || 'Plexy Lab';
+const BOT_OWNER = process.env.BOT_OWNER || '@qynon';
+const BOT_VERSION = process.env.BOT_VERSION || '1.1.0';
+
+// URL для вебхука при деплое на Vercel
+const WEBHOOK_URL = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null;
 
 // Инициализация Google Gemini API
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
@@ -77,8 +81,18 @@ const models = {
   })
 };
 
-// Инициализация Telegram бота
-const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
+// Инициализация Telegram бота в зависимости от среды (Vercel или локальная)
+let bot;
+if (WEBHOOK_URL) {
+  // Режим вебхуков для Vercel
+  bot = new TelegramBot(TELEGRAM_TOKEN);
+  bot.setWebHook(`${WEBHOOK_URL}/bot${TELEGRAM_TOKEN}`);
+  console.log(`Вебхук установлен на ${WEBHOOK_URL}/bot${TELEGRAM_TOKEN}`);
+} else {
+  // Режим поллинга для локальной разработки
+  bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
+  console.log('Бот запущен в режиме поллинга');
+}
 
 // Настройки пользователей (модель по умолчанию, настройки и т.д.)
 const userSettings = {};
@@ -1122,4 +1136,30 @@ bot.onText(/\/debug/, (msg) => {
   bot.sendMessage(chatId, debugInfo);
 });
 
-console.log(`${BOT_NAME} v${BOT_VERSION} запущен! Нажмите Ctrl+C для остановки.`);
+// Если запущено на Vercel, настраиваем Express сервер для вебхуков
+if (WEBHOOK_URL) {
+  const app = express();
+  app.use(express.json());
+  
+  // Маршрут для проверки работоспособности
+  app.get('/', (req, res) => {
+    res.send(`${BOT_NAME} Bot v${BOT_VERSION} работает!`);
+  });
+  
+  // Маршрут для вебхука Telegram
+  app.post(`/bot${TELEGRAM_TOKEN}`, (req, res) => {
+    bot.processUpdate(req.body);
+    res.sendStatus(200);
+  });
+  
+  // Запуск Express сервера
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`Express сервер запущен на порту ${PORT}`);
+  });
+  
+  // Экспортируем Express приложение для Vercel
+  module.exports = app;
+} else {
+  console.log(`${BOT_NAME} v${BOT_VERSION} запущен! Нажмите Ctrl+C для остановки.`);
+}
