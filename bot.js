@@ -86,8 +86,9 @@ let bot;
 if (WEBHOOK_URL) {
   // Режим вебхуков для Vercel
   bot = new TelegramBot(TELEGRAM_TOKEN);
-  bot.setWebHook(`${WEBHOOK_URL}/bot${TELEGRAM_TOKEN}`);
-  console.log(`Вебхук установлен на ${WEBHOOK_URL}/bot${TELEGRAM_TOKEN}`);
+  
+  // Не устанавливаем вебхук здесь, т.к. это будет делаться извне
+  console.log(`Бот настроен для работы с вебхуками`);
 } else {
   // Режим поллинга для локальной разработки
   bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
@@ -1151,8 +1152,19 @@ if (WEBHOOK_URL) {
   
   // Маршрут для вебхука Telegram
   app.post(`/bot${TELEGRAM_TOKEN}`, (req, res) => {
+    console.log('Получено обновление от Telegram:', JSON.stringify(req.body));
     bot.processUpdate(req.body);
     res.sendStatus(200);
+  });
+  
+  // Маршрут для проверки статуса бота
+  app.get('/status', (req, res) => {
+    res.json({
+      status: 'active',
+      bot_name: BOT_NAME,
+      version: BOT_VERSION,
+      telegram_token_length: TELEGRAM_TOKEN.length
+    });
   });
   
   // Запуск Express сервера

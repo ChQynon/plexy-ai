@@ -20,5 +20,11 @@
     "BOT_CREATOR": "Plexy Lab",
     "BOT_OWNER": "qynon",
     "BOT_VERSION": "1.1.0"
+  },
+  "functions": {
+    "api/webhook.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    }
   }
 } 
