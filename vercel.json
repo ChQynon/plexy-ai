@@ -1,17 +1,8 @@
 {
   "version": 2,
   "name": "plexy-bot",
-  "builds": [
-    {
-      "src": "index.js",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "/index.js"
-    }
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api/webhook.js" }
   ],
   "env": {
     "TELEGRAM_TOKEN": "8178608724:AAHZP8zTEXvmxkfQ1J3iyR0IVEfiv_l_548",
@@ -20,11 +11,5 @@
     "BOT_CREATOR": "Plexy Lab",
     "BOT_OWNER": "qynon",
     "BOT_VERSION": "1.1.0"
-  },
-  "functions": {
-    "api/webhook.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    }
   }
 } 
