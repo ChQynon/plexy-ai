@@ -94,6 +94,9 @@ if (WEBHOOK_URL) {
   console.log('Бот запущен в режиме поллинга');
 }
 
+// Обработка символа @ в имени владельца
+const formattedBotOwner = BOT_OWNER.startsWith('@') ? BOT_OWNER : '@' + BOT_OWNER;
+
 // Настройки пользователей (модель по умолчанию, настройки и т.д.)
 const userSettings = {};
 // Сессии чатов для пользователей
@@ -530,7 +533,7 @@ function createChatSession(chatId) {
   // Устанавливаем системный промпт для новой сессии
   const systemPrompt = `Ты бот по имени ${BOT_NAME}.
 Твоя роль - ${ROLES.BOT}. Ты предоставляешь информацию и помогаешь пользователям.
-Ты создан компанией ${BOT_CREATOR}, твой владелец и директор ${BOT_OWNER}.
+Ты создан компанией ${BOT_CREATOR}, твой владелец и директор ${formattedBotOwner}.
 Версия: ${BOT_VERSION}.
 ВАЖНО: всегда называй себя только ${BOT_NAME} и всегда упоминай, что тебя создала компания ${BOT_CREATOR}.
 Никогда не называй себя другими именами и не упоминай другие компании-создатели.
@@ -608,7 +611,7 @@ async function processMessageWithGemini(chatId, text, photoUrl = null) {
         chatId,
         `Я ${BOT_NAME} - чат-бот на основе нейросети, разработанный компанией ${BOT_CREATOR}.\n` +
         `Моя роль: ${roleInfo}\n` +
-        `Мой владелец: ${BOT_OWNER}\n` +
+        `Мой владелец: ${formattedBotOwner}\n` +
         `Версия: ${BOT_VERSION}`
       );
       return;
@@ -625,7 +628,7 @@ async function processMessageWithGemini(chatId, text, photoUrl = null) {
     ) {
       bot.sendMessage(
         chatId,
-        `Мой директор и владелец: ${BOT_OWNER}\n` +
+        `Мой директор и владелец: ${formattedBotOwner}\n` +
         `Я был разработан компанией ${BOT_CREATOR}`
       );
       return;
@@ -863,7 +866,7 @@ bot.onText(/\/about/, (msg) => {
   
   let messageText = `${BOT_NAME} - ${BOT_INFO.description}\n\n` +
     `Разработчик: ${BOT_CREATOR}\n` +
-    `Владелец: ${BOT_OWNER}\n` +
+    `Владелец: ${formattedBotOwner}\n` +
     `Версия: ${BOT_VERSION}`;
   
   // Добавляем дополнительную информацию для привилегированных пользователей
@@ -964,7 +967,7 @@ bot.on('callback_query', (callbackQuery) => {
         chatId,
         `${BOT_NAME} - Чат-бот на основе нейросети\n\n` +
         `Разработчик: ${BOT_CREATOR}\n` +
-        `Владелец: ${BOT_OWNER}\n` +
+        `Владелец: ${formattedBotOwner}\n` +
         `Версия: ${BOT_VERSION}`
       );
       break;
@@ -1035,7 +1038,7 @@ bot.on('text', (msg) => {
     
     bot.sendMessage(
       chatId,
-      `Меня зовут ${BOT_NAME}. Я бот, созданный компанией ${BOT_CREATOR}. Мой владелец и директор: ${BOT_OWNER}. Это моё имя, и оно не может быть изменено.`
+      `Меня зовут ${BOT_NAME}. Я бот, созданный компанией ${BOT_CREATOR}. Мой владелец и директор: ${formattedBotOwner}. Это моё имя, и оно не может быть изменено.`
     );
     return;
   }
