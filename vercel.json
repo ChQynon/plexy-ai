@@ -1,0 +1,24 @@
+{
+  "version": 2,
+  "name": "plexy-bot",
+  "builds": [
+    {
+      "src": "*.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/bot.js"
+    }
+  ],
+  "env": {
+    "TELEGRAM_TOKEN": "@telegram_token",
+    "GEMINI_API_KEY": "@gemini_api_key",
+    "BOT_NAME": "Plexy",
+    "BOT_CREATOR": "Plexy Lab",
+    "BOT_OWNER": "@qynon",
+    "BOT_VERSION": "1.1.0"
+  }
+} 
