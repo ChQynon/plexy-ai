@@ -2,6 +2,7 @@
   "version": 2,
   "rewrites": [
     { "source": "/api/webhook", "destination": "/api/webhook.js" },
+    { "source": "/api/test", "destination": "/api/test.js" },
     { "source": "/(.*)", "destination": "/index.js" }
   ],
   "buildCommand": "npm run vercel-build"
