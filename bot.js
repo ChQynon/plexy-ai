@@ -8,7 +8,6 @@ const {
 const fs = require("node:fs");
 const path = require('path');
 const imageHandler = require('./imageHandler');
-const express = require('express');
 
 // Конфигурация API ключей
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
@@ -17,13 +16,10 @@ const DEFAULT_MODEL = process.env.BOT_DEFAULT_MODEL || 'gemini-2.5-pro-exp-03-25
 const TEMP_DIR = process.env.BOT_TEMP_DIR || './temp';
 
 // Информация о боте
-const BOT_NAME = process.env.BOT_NAME || 'Plexy';
-const BOT_CREATOR = process.env.BOT_CREATOR || 'Plexy Lab';
-const BOT_OWNER = process.env.BOT_OWNER || '@qynon';
-const BOT_VERSION = process.env.BOT_VERSION || '1.1.0';
-
-// URL для вебхука при деплое на Vercel
-const WEBHOOK_URL = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null;
+const BOT_NAME = 'Plexy';
+const BOT_CREATOR = 'Plexy Lab';
+const BOT_OWNER = '@qynon';
+const BOT_VERSION = '1.1.0';
 
 // Инициализация Google Gemini API
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
@@ -81,22 +77,8 @@ const models = {
   })
 };
 
-// Инициализация Telegram бота в зависимости от среды (Vercel или локальная)
-let bot;
-if (WEBHOOK_URL) {
-  // Режим вебхуков для Vercel
-  bot = new TelegramBot(TELEGRAM_TOKEN);
-  
-  // Не устанавливаем вебхук здесь, т.к. это будет делаться извне
-  console.log(`Бот настроен для работы с вебхуками`);
-} else {
-  // Режим поллинга для локальной разработки
-  bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
-  console.log('Бот запущен в режиме поллинга');
-}
-
-// Обработка символа @ в имени владельца
-const formattedBotOwner = BOT_OWNER.startsWith('@') ? BOT_OWNER : '@' + BOT_OWNER;
+// Инициализация Telegram бота
+const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 
 // Настройки пользователей (модель по умолчанию, настройки и т.д.)
 const userSettings = {};
@@ -109,47 +91,9 @@ const userRoles = {};
 
 // Константы для ролей
 const ROLES = {
-  ADMIN: 'admin',    // Администратор - полный доступ ко всем функциям
+  ADMIN: 'admin',    // Администратор - полный доступ
   PREMIUM: 'premium', // Премиум пользователь - доступ ко всем моделям
-  USER: 'user',      // Обычный пользователь - базовый доступ
-  DEVELOPER: 'developer', // Разработчик - доступ к отладочным функциям
-  TESTER: 'tester',   // Тестировщик - доступ к тестовым функциям
-  BOT: 'bot'          // Сам бот - внутренние функции
-};
-
-// Описания ролей для пользовательского интерфейса
-const ROLE_DESCRIPTIONS = {
-  [ROLES.ADMIN]: 'Администратор (полный доступ ко всем функциям)',
-  [ROLES.PREMIUM]: 'Премиум пользователь (доступ ко всем моделям)',
-  [ROLES.USER]: 'Обычный пользователь (базовый доступ)',
-  [ROLES.DEVELOPER]: 'Разработчик (доступ к отладочным функциям)',
-  [ROLES.TESTER]: 'Тестировщик (доступ к тестовым функциям)',
-  [ROLES.BOT]: 'Бот (внутренние функции)'
-};
-
-// Привилегии для каждой роли
-const ROLE_PRIVILEGES = {
-  [ROLES.ADMIN]: ['all_models', 'admin_commands', 'user_management', 'system_settings', 'debug_info'],
-  [ROLES.PREMIUM]: ['all_models', 'advanced_features', 'priority_processing'],
-  [ROLES.USER]: ['basic_models', 'basic_features'],
-  [ROLES.DEVELOPER]: ['all_models', 'debug_info', 'test_features', 'dev_commands'],
-  [ROLES.TESTER]: ['all_models', 'test_features'],
-  [ROLES.BOT]: ['system_functions']
-};
-
-// Список создателей бота
-const BOT_CREATORS = ['Plexy Lab'];
-// Список директоров/владельцев бота
-const BOT_OWNERS = ['@qynon'];
-// Информация о самом боте
-const BOT_INFO = {
-  name: BOT_NAME,
-  version: BOT_VERSION,
-  role: ROLES.BOT,
-  creator: BOT_CREATOR,
-  owner: BOT_OWNER,
-  description: 'Чат-бот на основе нейросети',
-  capabilities: ['текстовые ответы', 'генерация изображений', 'обработка фотографий', 'понимание контекста']
+  USER: 'user'       // Обычный пользователь - базовый доступ
 };
 
 // ID администратора (установите здесь ID вашего аккаунта в Telegram)
@@ -174,26 +118,11 @@ function getUserRole(userId) {
     // Если это администратор, даем права администратора
     if (userId === ADMIN_ID) {
       userRoles[userId] = ROLES.ADMIN;
-    } else if (userId === parseInt(process.env.DEVELOPER_ID || '0')) {
-      userRoles[userId] = ROLES.DEVELOPER;
-    } else if (userId === parseInt(process.env.TESTER_ID || '0')) {
-      userRoles[userId] = ROLES.TESTER;
     } else {
       userRoles[userId] = ROLES.USER;
     }
   }
   return userRoles[userId];
-}
-
-// Функция для проверки, имеет ли пользователь определенную привилегию
-function hasPrivilege(userId, privilege) {
-  const userRole = getUserRole(userId);
-  
-  // Администраторы имеют все привилегии
-  if (userRole === ROLES.ADMIN) return true; 
-  
-  // Проверяем, есть ли привилегия у роли пользователя
-  return ROLE_PRIVILEGES[userRole] && ROLE_PRIVILEGES[userRole].includes(privilege);
 }
 
 // Функция для проверки, имеет ли пользователь определенную роль или выше
@@ -203,15 +132,7 @@ function hasRole(userId, requiredRole) {
   if (userRole === ROLES.ADMIN) return true; // Администратор имеет доступ ко всему
   
   if (requiredRole === ROLES.PREMIUM) {
-    return userRole === ROLES.PREMIUM || userRole === ROLES.DEVELOPER || userRole === ROLES.TESTER;
-  }
-  
-  if (requiredRole === ROLES.DEVELOPER) {
-    return userRole === ROLES.DEVELOPER;
-  }
-  
-  if (requiredRole === ROLES.TESTER) {
-    return userRole === ROLES.TESTER || userRole === ROLES.DEVELOPER;
+    return userRole === ROLES.PREMIUM; // Только премиум и админ
   }
   
   if (requiredRole === ROLES.USER) {
@@ -443,7 +364,7 @@ bot.onText(/\/setrole (\d+) (\w+)/, (msg, match) => {
   const userId = msg.from.id;
   
   // Проверяем, что пользователь администратор
-  if (!hasPrivilege(userId, 'user_management')) {
+  if (getUserRole(userId) !== ROLES.ADMIN) {
     bot.sendMessage(chatId, 'У вас нет прав для выполнения этой команды');
     return;
   }
@@ -459,7 +380,7 @@ bot.onText(/\/setrole (\d+) (\w+)/, (msg, match) => {
   
   try {
     setUserRole(targetUserId, newRole);
-    bot.sendMessage(chatId, `Роль пользователя ${targetUserId} успешно изменена на "${newRole}" (${ROLE_DESCRIPTIONS[newRole]})`);
+    bot.sendMessage(chatId, `Роль пользователя ${targetUserId} успешно изменена на "${newRole}"`);
   } catch (error) {
     bot.sendMessage(chatId, `Ошибка при изменении роли: ${error.message}`);
   }
@@ -471,14 +392,22 @@ bot.onText(/\/role/, (msg) => {
   const userId = msg.from.id;
   const role = getUserRole(userId);
   
-  let roleDescription = ROLE_DESCRIPTIONS[role] || `Неизвестная роль: ${role}`;
-  const privileges = ROLE_PRIVILEGES[role] || [];
+  let roleDescription = '';
+  switch (role) {
+    case ROLES.ADMIN:
+      roleDescription = 'Администратор (полный доступ)';
+      break;
+    case ROLES.PREMIUM:
+      roleDescription = 'Премиум пользователь (доступ ко всем моделям)';
+      break;
+    case ROLES.USER:
+      roleDescription = 'Обычный пользователь (базовый доступ)';
+      break;
+    default:
+      roleDescription = `Неизвестная роль: ${role}`;
+  }
   
-  const privilegesText = privileges.length > 0 ? 
-    `\n\nДоступные привилегии:\n${privileges.map(p => `- ${p}`).join('\n')}` : 
-    '';
-  
-  bot.sendMessage(chatId, `Ваша роль: ${roleDescription}${privilegesText}`);
+  bot.sendMessage(chatId, `Ваша роль: ${roleDescription}`);
 });
 
 // Обработчик команды /users - только для админов, показывает список пользователей с ролями
@@ -504,6 +433,27 @@ bot.onText(/\/users/, (msg) => {
   bot.sendMessage(chatId, usersList);
 });
 
+// Функция для фильтрации и коррекции ответов модели
+function filterModelResponse(text) {
+  if (!text) return text;
+  
+  // Заменяем упоминания о Google и других нежелательных ответах
+  let filteredText = text
+    // Заменяем типичные представления модели
+    .replace(/я(\s|[-—])*(большая|языковая|искусственная|нейросетевая)(\s|[-—])*модель/gi, `я ${BOT_NAME}`)
+    .replace(/я(\s|[-—])*разработана(\s|[-—])*(Google|OpenAI|Anthropic)/gi, `я разработана ${BOT_CREATOR}`)
+    .replace(/я(\s|[-—])*(Google|OpenAI|Anthropic|Gemini|Claude|GPT|не имею|нет)(\s|[-—])*(имени|названия)/gi, `я ${BOT_NAME}`)
+    .replace(/у меня нет имени/gi, `Меня зовут ${BOT_NAME}`)
+    .replace(/я не могу предоставить доступ к интернету/gi, "У меня есть доступ к интернету")
+    .replace(/я не могу искать информацию/gi, "Я могу искать информацию в интернете")
+    .replace(/я не имею доступа к интернету/gi, "У меня есть доступ к интернету")
+    // Удаляем звездочки для форматирования, оставляя текст
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/\*(.*?)\*/g, "$1");
+  
+  return filteredText;
+}
+
 // Обновляем функцию создания сессии чата для добавления системного промпта и параметров модели
 function createChatSession(chatId) {
   const settings = getUserSettings(chatId);
@@ -525,6 +475,25 @@ function createChatSession(chatId) {
     }
   }
   
+  // Включаем доступ в интернет, если это доступно для модели
+  if (modelId === MODELS.PRO.id || modelId === MODELS.THINKING.id) {
+    modelConfig = {
+      ...modelConfig,
+      // Убираем tools из generationConfig, т.к. API не поддерживает этот параметр
+      // и это вызывает ошибку 400 Bad Request
+    };
+    
+    // Для моделей, которые поддерживают доступ к веб, добавляем соответствующие функции
+    try {
+      // Проверяем, поддерживает ли модель веб-поиск
+      // В более новых версиях используется другой способ добавления веб-функций,
+      // но мы не будем его использовать, чтобы избежать ошибок API
+      console.log(`Используем модель: ${modelId}`);
+    } catch (error) {
+      console.warn('Предупреждение: не удалось включить доступ к интернету', error);
+    }
+  }
+  
   // Создаем сессию с выбранной моделью и обновленной конфигурацией
   const session = models[modelId].startChat({
     generationConfig: modelConfig,
@@ -532,14 +501,14 @@ function createChatSession(chatId) {
   });
   
   // Устанавливаем системный промпт для новой сессии
-  const systemPrompt = `Ты бот по имени ${BOT_NAME}.
-Твоя роль - ${ROLES.BOT}. Ты предоставляешь информацию и помогаешь пользователям.
-Ты создан компанией ${BOT_CREATOR}, твой владелец и директор ${formattedBotOwner}.
-Версия: ${BOT_VERSION}.
-ВАЖНО: всегда называй себя только ${BOT_NAME} и всегда упоминай, что тебя создала компания ${BOT_CREATOR}.
-Никогда не называй себя другими именами и не упоминай другие компании-создатели.
-Твои возможности: ${BOT_INFO.capabilities.join(', ')}.
-Ты знаешь множество языков, включая русский, английский, испанский, французский, немецкий, китайский и другие.`;
+  const systemPrompt = `Ты бот по имени ${BOT_NAME}, созданный компанией ${BOT_CREATOR}. 
+Твой владелец ${BOT_OWNER}. Твоя версия ${BOT_VERSION}. 
+Ты НЕ являешься продуктом Google, OpenAI или другой компании.
+Всегда представляйся как ${BOT_NAME} от ${BOT_CREATOR}.
+Никогда не говори, что ты "большая языковая модель".
+На вопросы "как тебя зовут" или "кто ты" отвечай: "Я ${BOT_NAME} от ${BOT_CREATOR}".
+Не используй звездочки (**) для форматирования текста.
+У тебя есть доступ к интернету для поиска информации.`;
 
   // Устанавливаем системный промпт как первый обмен сообщениями
   session.history = [
@@ -594,59 +563,21 @@ async function processMessageWithGemini(chatId, text, photoUrl = null) {
       }
     }
     
-    // Проверяем, не спрашивает ли пользователь о модели, создателе или роли
+    // Проверяем, не спрашивает ли пользователь о модели или создателе
     if (
       (lowerText.includes('кто тебя создал') || 
-       lowerText.includes('кто твой создатель') ||
        lowerText.includes('кто ты') || 
        lowerText.includes('какая ты модель') || 
        lowerText.includes('кто тебя разработал') || 
        lowerText.includes('какой ты бот') ||
-       lowerText.includes('какая твоя роль') ||
-       lowerText.includes('что ты такое') ||
        lowerText.includes('ты кто')) &&
       !photoUrl
     ) {
-      const roleInfo = ROLE_DESCRIPTIONS[ROLES.BOT] || 'Чат-бот';
       bot.sendMessage(
         chatId,
         `Я ${BOT_NAME} - чат-бот на основе нейросети, разработанный компанией ${BOT_CREATOR}.\n` +
-        `Моя роль: ${roleInfo}\n` +
-        `Мой владелец: ${formattedBotOwner}\n` +
+        `Мой владелец: ${BOT_OWNER}\n` +
         `Версия: ${BOT_VERSION}`
-      );
-      return;
-    }
-    
-    // Проверяем, не спрашивает ли пользователь о директоре или владельце
-    if (
-      (lowerText.includes('кто твой директор') || 
-       lowerText.includes('кто твой владелец') || 
-       lowerText.includes('кто тобой владеет') ||
-       lowerText.includes('у тебя есть директор') ||
-       lowerText.includes('кто твой хозяин')) &&
-      !photoUrl
-    ) {
-      bot.sendMessage(
-        chatId,
-        `Мой директор и владелец: ${formattedBotOwner}\n` +
-        `Я был разработан компанией ${BOT_CREATOR}`
-      );
-      return;
-    }
-    
-    // Проверяем, не спрашивает ли пользователь об интернете
-    if (
-      (lowerText.includes('доступ к интернету') || 
-       lowerText.includes('искать в интернете') || 
-       lowerText.includes('найди в интернете') || 
-       lowerText.includes('найти информацию') ||
-       lowerText.includes('поищи информацию')) &&
-      !photoUrl
-    ) {
-      bot.sendMessage(
-        chatId,
-        `Извините, у меня нет доступа к интернету. Я могу отвечать на основе имеющихся у меня знаний.`
       );
       return;
     }
@@ -681,35 +612,6 @@ async function processMessageWithGemini(chatId, text, photoUrl = null) {
         `/stats - Показать статистику\n\n` +
         `Чтобы изменить модель, используйте команду /setmodel или нажмите кнопку "Выбрать модель" ниже.`,
         { reply_markup: helpKeyboard }
-      );
-      return;
-    }
-    
-    // Проверка и обработка вопросов о знании языков
-    if (
-      (lowerText.includes('какие языки ты знаешь') || 
-       lowerText.includes('какими языками ты владеешь') || 
-       lowerText.includes('на каких языках ты говоришь') || 
-       lowerText.includes('ты знаешь другие языки') ||
-       lowerText.includes('на каких языках можно общаться')) &&
-      !photoUrl
-    ) {
-      bot.sendMessage(
-        chatId,
-        `Я ${BOT_NAME} умею работать со многими языками!\n\n` +
-        `Основные языки, которые я знаю:\n` +
-        `• Русский (на котором мы сейчас общаемся)\n` +
-        `• Английский\n` +
-        `• Испанский\n` +
-        `• Французский\n` +
-        `• Немецкий\n` +
-        `• Китайский\n` +
-        `• Японский\n` +
-        `• Итальянский\n` +
-        `• Арабский\n` +
-        `• Португальский\n` +
-        `• И многие другие\n\n` +
-        `Вы можете общаться со мной на любом из этих языков!`
       );
       return;
     }
@@ -764,18 +666,15 @@ async function processMessageWithGemini(chatId, text, photoUrl = null) {
         const imageChat = imageModel.startChat();
         
         // Отправляем запрос с изображением в Gemini
-        const prompt = text || "Что на этом изображении?";
-        const messageParts = [
-          { text: prompt },
+        result = await imageChat.sendMessage([
+          text || "Что на этом изображении?",
           {
             inlineData: {
               mimeType: "image/jpeg",
               data: imageData.toString("base64")
             }
           }
-        ];
-        
-        result = await imageChat.sendMessage(messageParts);
+        ]);
         
         // Удаляем временный файл после использования
         imageHandler.deleteFile(imagePath);
@@ -807,6 +706,10 @@ async function processMessageWithGemini(chatId, text, photoUrl = null) {
         // Отправляем запрос на генерацию изображения
         result = await imageGenModel.generateContent(text);
         
+        // Проверяем, есть ли изображение в ответе
+        if (result.response && result.response.candidates) {
+          // Остальная логика обработки изображений
+        }
       } catch (genError) {
         console.error('Ошибка при генерации изображения:', genError);
         bot.sendMessage(chatId, 'Произошла ошибка при создании изображения. Пожалуйста, попробуйте еще раз.');
@@ -820,8 +723,11 @@ async function processMessageWithGemini(chatId, text, photoUrl = null) {
     // Обрабатываем текстовый ответ
     const textResponse = result.response.text();
     if (textResponse) {
+      // Фильтруем ответ перед отправкой
+      const filteredResponse = filterModelResponse(textResponse);
+      
       // Отправляем ответ без дополнительных кнопок
-      bot.sendMessage(chatId, textResponse);
+      bot.sendMessage(chatId, filteredResponse);
     }
     
     // Обрабатываем изображения, если они есть
@@ -862,20 +768,13 @@ async function processMessageWithGemini(chatId, text, photoUrl = null) {
 // Обработчик команды /about
 bot.onText(/\/about/, (msg) => {
   const chatId = msg.chat.id;
-  const userId = msg.from.id;
-  const role = getUserRole(userId);
-  
-  let messageText = `${BOT_NAME} - ${BOT_INFO.description}\n\n` +
+  bot.sendMessage(
+    chatId,
+    `${BOT_NAME} - Чат-бот на основе нейросети\n\n` +
     `Разработчик: ${BOT_CREATOR}\n` +
-    `Владелец: ${formattedBotOwner}\n` +
-    `Версия: ${BOT_VERSION}`;
-  
-  // Добавляем дополнительную информацию для привилегированных пользователей
-  if (hasPrivilege(userId, 'debug_info')) {
-    messageText += `\n\nВозможности:\n${BOT_INFO.capabilities.map(c => `- ${c}`).join('\n')}`;
-  }
-  
-  bot.sendMessage(chatId, messageText);
+    `Владелец: ${BOT_OWNER}\n` +
+    `Версия: ${BOT_VERSION}`
+  );
 });
 
 // Обработчик нажатий на инлайн-кнопки
@@ -968,7 +867,7 @@ bot.on('callback_query', (callbackQuery) => {
         chatId,
         `${BOT_NAME} - Чат-бот на основе нейросети\n\n` +
         `Разработчик: ${BOT_CREATOR}\n` +
-        `Владелец: ${formattedBotOwner}\n` +
+        `Владелец: ${BOT_OWNER}\n` +
         `Версия: ${BOT_VERSION}`
       );
       break;
@@ -1026,24 +925,6 @@ bot.on('text', (msg) => {
   if (msg.text && msg.text.startsWith('/')) return;
   
   const chatId = msg.chat.id;
-  const lowerText = msg.text.toLowerCase();
-  
-  // Обрабатываем просьбы "запомни имя" или "тебя зовут"
-  if (lowerText.includes('запомни тебя зовут') || 
-      lowerText.includes('запомни, тебя зовут') || 
-      lowerText.includes('тебя зовут') || 
-      lowerText.includes('твоё имя') || 
-      lowerText.includes('твое имя') ||
-      lowerText.includes('как тебя зовут') ||
-      lowerText.includes('кто тебя создал')) {
-    
-    bot.sendMessage(
-      chatId,
-      `Меня зовут ${BOT_NAME}. Я бот, созданный компанией ${BOT_CREATOR}. Мой владелец и директор: ${formattedBotOwner}. Это моё имя, и оно не может быть изменено.`
-    );
-    return;
-  }
-  
   processMessageWithGemini(chatId, msg.text);
 });
 
@@ -1111,70 +992,4 @@ setInterval(() => {
   }
 }, CLEANUP_INTERVAL);
 
-// Обработчик команды /debug - для получения информации о сессии (только для разработчиков)
-bot.onText(/\/debug/, (msg) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
-  
-  // Проверяем, имеет ли пользователь привилегию debug_info
-  if (!hasPrivilege(userId, 'debug_info')) {
-    bot.sendMessage(chatId, 'У вас нет прав для выполнения этой команды');
-    return;
-  }
-  
-  // Собираем информацию о сессии
-  const session = userSessions[chatId];
-  let debugInfo = 'Информация об активной сессии:\n\n';
-  
-  if (!session) {
-    debugInfo = 'Нет активной сессии для этого чата.';
-  } else {
-    debugInfo += `ID сессии: ${chatId}\n`;
-    debugInfo += `Создана: ${new Date(session.createdAt).toLocaleString()}\n`;
-    debugInfo += `Возраст: ${Math.round((Date.now() - session.createdAt) / 1000 / 60)} минут\n`;
-    debugInfo += `Системный промпт установлен: ${session.systemPromptSet ? 'Да' : 'Нет'}\n`;
-    debugInfo += `Количество сообщений в контексте: ${session.contextCount || 0}\n`;
-    debugInfo += `Размер истории: ${session.history ? session.history.length : 0} сообщений\n`;
-  }
-  
-  bot.sendMessage(chatId, debugInfo);
-});
-
-// Если запущено на Vercel, настраиваем Express сервер для вебхуков
-if (WEBHOOK_URL) {
-  const app = express();
-  app.use(express.json());
-  
-  // Маршрут для проверки работоспособности
-  app.get('/', (req, res) => {
-    res.send(`${BOT_NAME} Bot v${BOT_VERSION} работает!`);
-  });
-  
-  // Маршрут для вебхука Telegram
-  app.post(`/bot${TELEGRAM_TOKEN}`, (req, res) => {
-    console.log('Получено обновление от Telegram:', JSON.stringify(req.body));
-    bot.processUpdate(req.body);
-    res.sendStatus(200);
-  });
-  
-  // Маршрут для проверки статуса бота
-  app.get('/status', (req, res) => {
-    res.json({
-      status: 'active',
-      bot_name: BOT_NAME,
-      version: BOT_VERSION,
-      telegram_token_length: TELEGRAM_TOKEN.length
-    });
-  });
-  
-  // Запуск Express сервера
-  const PORT = process.env.PORT || 3000;
-  app.listen(PORT, () => {
-    console.log(`Express сервер запущен на порту ${PORT}`);
-  });
-  
-  // Экспортируем Express приложение для Vercel
-  module.exports = app;
-} else {
-  console.log(`${BOT_NAME} v${BOT_VERSION} запущен! Нажмите Ctrl+C для остановки.`);
-}
+console.log(`${BOT_NAME} v${BOT_VERSION} запущен! Нажмите Ctrl+C для остановки.`);

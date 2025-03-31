@@ -1,35 +1,27 @@
-# Зависимости
+# Node.js
 node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
 
-# Логи
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Локальные настройки окружения
+# Переменные окружения
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 
-# Директория для временных файлов
+# Временные файлы
 temp/
-dist/
-
-# Кэш
-.npm
-.eslintcache
+*.tmp
+*.log
 
 # Редакторы
-.idea/
 .vscode/
-*.swp
-*.swo
-*~
+.idea/
+*.sublime-project
+*.sublime-workspace
 
-# Системные файлы
+# OS
 .DS_Store
 Thumbs.db 
