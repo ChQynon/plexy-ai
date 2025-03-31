@@ -347,12 +347,15 @@ async function processMessageWithGemini(chatId, text, photoUrl = null) {
 }
 
 // Создаем бота для отправки сообщений
-const bot = new TelegramBot(TELEGRAM_TOKEN);
+const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: false });
 
 // Обработчик для вебхуков
 module.exports = async (req, res) => {
   try {
     console.log(`Получен запрос на ${req.url} с методом ${req.method}`);
+    console.log('Environment variables:', Object.keys(process.env).filter(key => !key.includes('KEY') && !key.includes('TOKEN')));
+    console.log('Token exists:', !!TELEGRAM_TOKEN);
+    console.log('API Key exists:', !!GEMINI_API_KEY);
     
     // Обработка проверки здоровья
     if (req.method === 'GET') {
@@ -361,7 +364,8 @@ module.exports = async (req, res) => {
         status: 'OK',
         message: 'Webhook сервер Plexy работает',
         version: BOT_VERSION,
-        tempDir
+        tempDir,
+        botURL: BOT_URL
       });
     }
     
@@ -372,9 +376,11 @@ module.exports = async (req, res) => {
     
     // Получаем обновление от Telegram
     const update = req.body;
+    console.log('Получено обновление:', JSON.stringify(update).substring(0, 300) + '...');
     
     // Проверяем наличие сообщения в обновлении
     if (!update || !update.message) {
+      console.log('Обновление не содержит сообщения');
       return res.status(200).json({ status: 'OK', warning: 'No message in update' });
     }
     
@@ -383,7 +389,7 @@ module.exports = async (req, res) => {
     const chatId = message.chat.id;
     let responseText = '';
     
-    console.log(`Получено сообщение от ${chatId}`);
+    console.log(`Получено сообщение от ${chatId}: ${message.text || '[не текст]'}`);
     
     // Проверяем, если это команда /start
     if (message.text && message.text === '/start') {
@@ -399,29 +405,36 @@ module.exports = async (req, res) => {
     }
     // Проверяем, если это команда /models
     else if (message.text && message.text === '/models') {
-      responseText = 'Доступные модели:\n\n';
-      let index = 1;
-      for (const key in MODELS) {
-        responseText += `${index}. ${MODELS[key].name} (${MODELS[key].id})\n`;
-        index++;
+      responseText = 'Доступные модели:\n\n1. Plexy (gemini-2.5-pro-exp-03-25)\n2. Plexy think (gemini-2.0-flash-thinking-exp-01-21)\n3. Plexy art (gemini-2.0-flash-exp-image-generation)\n\nИспользуйте /setmodel для выбора модели.';
+      
+      try {
+        // Вместо текстового ответа отправляем сообщение с кнопками
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: 'Выберите модель:',
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: 'Plexy', callback_data: 'setmodel_2' },
+                  { text: 'Plexy think', callback_data: 'setmodel_3' },
+                  { text: 'Plexy art', callback_data: 'setmodel_1' }
+                ]
+              ]
+            }
+          })
+        });
+        
+        // Уже отправили сообщение, поэтому сбрасываем текст
+        responseText = '';
+      } catch (error) {
+        console.error('Ошибка при отправке клавиатуры выбора модели:', error);
+        // Если не удалось отправить сообщение с кнопками, используем обычный текст
       }
-      responseText += '\nИспользуйте /setmodel для выбора модели.';
-      
-      // Вместо текстового ответа отправляем сообщение с кнопками
-      await bot.sendMessage(chatId, 'Выберите модель:', {
-        reply_markup: {
-          inline_keyboard: [
-            [
-              { text: 'Plexy', callback_data: 'setmodel_2' },
-              { text: 'Plexy think', callback_data: 'setmodel_3' },
-              { text: 'Plexy art', callback_data: 'setmodel_1' }
-            ]
-          ]
-        }
-      });
-      
-      // Уже отправили сообщение, поэтому сбрасываем текст
-      responseText = '';
     }
     // Обработка обычных текстовых сообщений
     else if (message.text) {
@@ -429,41 +442,82 @@ module.exports = async (req, res) => {
     }
     // Обработка фотографий
     else if (message.photo) {
-      // Получаем самую большую версию фото
-      const photo = message.photo[message.photo.length - 1];
-      const fileId = photo.file_id;
-      
-      // Получаем ссылку на файл
-      const fileInfo = await bot.getFile(fileId);
-      const fileUrl = `https://api.telegram.org/file/bot${TELEGRAM_TOKEN}/${fileInfo.file_path}`;
-      
-      // Обрабатываем фото с помощью Gemini
-      responseText = await processMessageWithGemini(
-        chatId,
-        message.caption || 'Что на этом изображении?',
-        fileUrl
-      );
+      try {
+        // Получаем самую большую версию фото
+        const photo = message.photo[message.photo.length - 1];
+        const fileId = photo.file_id;
+        
+        // Получаем ссылку на файл через API Telegram
+        const fileInfoResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getFile?file_id=${fileId}`);
+        const fileInfo = await fileInfoResponse.json();
+        
+        if (fileInfo.ok && fileInfo.result && fileInfo.result.file_path) {
+          const fileUrl = `https://api.telegram.org/file/bot${TELEGRAM_TOKEN}/${fileInfo.result.file_path}`;
+          
+          // Обрабатываем фото с помощью Gemini
+          responseText = await processMessageWithGemini(
+            chatId,
+            message.caption || 'Что на этом изображении?',
+            fileUrl
+          );
+        } else {
+          responseText = 'Не удалось получить файл изображения. Пожалуйста, попробуйте еще раз.';
+          console.error('Ошибка при получении файла:', fileInfo);
+        }
+      } catch (photoError) {
+        console.error('Ошибка при обработке фото:', photoError);
+        responseText = 'Произошла ошибка при обработке фотографии. Пожалуйста, попробуйте еще раз.';
+      }
     }
     // Обработка стикеров
     else if (message.sticker && !message.sticker.is_animated && !message.sticker.is_video) {
-      const fileId = message.sticker.file_id;
-      const fileInfo = await bot.getFile(fileId);
-      const fileUrl = `https://api.telegram.org/file/bot${TELEGRAM_TOKEN}/${fileInfo.file_path}`;
-      
-      // Обработка стикера
-      responseText = await processMessageWithGemini(chatId, 'Опиши этот стикер.', fileUrl);
+      try {
+        const fileId = message.sticker.file_id;
+        
+        // Получаем ссылку на файл через API Telegram
+        const fileInfoResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getFile?file_id=${fileId}`);
+        const fileInfo = await fileInfoResponse.json();
+        
+        if (fileInfo.ok && fileInfo.result && fileInfo.result.file_path) {
+          const fileUrl = `https://api.telegram.org/file/bot${TELEGRAM_TOKEN}/${fileInfo.result.file_path}`;
+          
+          // Обработка стикера
+          responseText = await processMessageWithGemini(chatId, 'Опиши этот стикер.', fileUrl);
+        } else {
+          responseText = 'Не удалось получить файл стикера. Пожалуйста, попробуйте еще раз.';
+          console.error('Ошибка при получении файла стикера:', fileInfo);
+        }
+      } catch (stickerError) {
+        console.error('Ошибка при обработке стикера:', stickerError);
+        responseText = 'Произошла ошибка при обработке стикера. Пожалуйста, попробуйте еще раз.';
+      }
     }
     
     // Отправляем ответ, если он есть
     if (responseText) {
-      await bot.sendMessage(chatId, responseText);
+      try {
+        // Используем прямой API запрос вместо node-telegram-bot-api
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: responseText
+          })
+        });
+        console.log(`Ответ отправлен пользователю ${chatId}`);
+      } catch (sendError) {
+        console.error('Ошибка при отправке ответа:', sendError);
+      }
     }
     
     // Возвращаем успешный ответ
     return res.status(200).json({ status: 'OK' });
   } catch (error) {
     console.error('Ошибка в обработчике вебхука:', error);
-    return res.status(500).json({ error: 'Internal server error', message: error.message });
+    return res.status(500).json({ error: 'Internal server error', message: error.message, stack: error.stack });
   }
 };
 
