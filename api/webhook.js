@@ -521,8 +521,21 @@ const webhookHandler = async (req, res) => {
   }
 };
 
-// Экспортируем обработчик для использования как с Vercel, так и с Express
-module.exports = webhookHandler;
+// Экспортируем обработчик для использования с Vercel
+module.exports = (req, res) => {
+  // Для Vercel - нужно добавить обработку CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  
+  // Обработка preflight запросов
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  // Передаем управление основному обработчику
+  return webhookHandler(req, res);
+};
 
 // Если этот файл запущен напрямую
 if (require.main === module) {
