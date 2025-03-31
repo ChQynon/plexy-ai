@@ -1,7 +1,12 @@
 {
   "version": 2,
+  "functions": {
+    "api/**/*.js": {
+      "runtime": "nodejs18.x"
+    }
+  },
   "rewrites": [
-    { "source": "/api/webhook", "destination": "/webhook.js" },
+    { "source": "/api/webhook", "destination": "/api/webhook.js" },
     { "source": "/(.*)", "destination": "/index.js" }
   ],
   "buildCommand": "npm run vercel-build"
