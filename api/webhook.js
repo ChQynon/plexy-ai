@@ -350,7 +350,7 @@ async function processMessageWithGemini(chatId, text, photoUrl = null) {
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: false });
 
 // Обработчик для вебхуков
-module.exports = async (req, res) => {
+const webhookHandler = async (req, res) => {
   try {
     console.log(`Получен запрос на ${req.url} с методом ${req.method}`);
     console.log('Environment variables:', Object.keys(process.env).filter(key => !key.includes('KEY') && !key.includes('TOKEN')));
@@ -521,6 +521,18 @@ module.exports = async (req, res) => {
   }
 };
 
+// Экспортируем обработчик для использования как с Vercel, так и с Express
+module.exports = webhookHandler;
+
+// Если этот файл запущен напрямую
+if (require.main === module) {
+  ensureTempDir()
+    .then(() => console.log(`Временная директория: ${tempDir}`))
+    .then(() => setWebhook())
+    .then(console.log)
+    .catch(console.error);
+}
+
 // Функция для установки вебхука
 async function setWebhook() {
   try {
@@ -532,13 +544,4 @@ async function setWebhook() {
     console.error('Ошибка при установке вебхука:', error);
     return { success: false, error: error.message };
   }
-}
-
-// Если файл запущен напрямую
-if (require.main === module) {
-  ensureTempDir()
-    .then(() => console.log(`Временная директория: ${tempDir}`))
-    .then(() => setWebhook())
-    .then(console.log)
-    .catch(console.error);
 } 
